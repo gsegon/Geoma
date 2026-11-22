@@ -8,16 +8,19 @@ target_sources(geoma INTERFACE
 
 target_include_directories(geoma INTERFACE include)
 
-if(BUILD_TESTING)
+if (BUILD_TESTING)
     include(CTest)
 
+    include(FetchContent)
     FetchContent_Declare(
             googletest
-            URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
+            URL https://github.com/google/googletest/archive/refs/tags/v1.18.0.zip
     )
 
     # Required for MSVC on Windows
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    if (MSVC)
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    endif ()
 
     FetchContent_MakeAvailable(googletest)
 

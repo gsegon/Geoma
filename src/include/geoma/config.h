@@ -6,7 +6,7 @@ namespace geoma
 
   struct ToleranceConfig
   {
-    double tol  = 1e-10;
+    double tol = 1e-10;
   };
 
 
