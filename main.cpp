@@ -1,11 +1,11 @@
-#include "algorithms.h"
+#include <geoma/geoma.h>
 
 #include <iostream>
 #include <numbers>
 #include <set>
 
 int main() {
-  using namespace UngaBunga;
+  using namespace geoma;
 
   std::set<Segment> source{
     {{0, 0}, {3, 0}},

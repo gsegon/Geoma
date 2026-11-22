@@ -1,7 +1,7 @@
-#ifndef UNTITLED1_NORMALIZE_H
-#define UNTITLED1_NORMALIZE_H
-#include "config.h"
-#include "primitives.h"
+#ifndef GEOMA_ALGORITHMS_H
+#define GEOMA_ALGORITHMS_H
+#include <geoma/config.h>
+#include <geoma/primitives.h>
 
 #include <algorithm>
 #include <array>
@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace UngaBunga
+namespace geoma
 {
   // Public API - Start
 
@@ -41,22 +41,22 @@ namespace UngaBunga
   canonicalize(const std::set<Segment> &segments,
                const ToleranceConfig   &tolerance_config);
 
-  /**
-   * Generates candidates of the transform for two sets of linear segments in
-   * canonical form. Assumption is that the two sets represent identical
-   * geometric union under some transformation. Candidates are later checked
-   * with `verify_equal`.
-   *
-   * @param source
-   * @param target
-   * @param tolerance_config
-   * @return
-   */
-  [[nodiscard]]
-  std::vector<Transform>
-  generate_candidates(const std::set<Segment> &source,
-                      const std::set<Segment> &target,
-                      const ToleranceConfig   &tolerance_config);
+  // /**
+  //  * Generates candidates of the transform for two sets of linear segments in
+  //  * canonical form. Assumption is that the two sets represent identical
+  //  * geometric union under some transformation. Candidates are later checked
+  //  * with `verify_equal`.
+  //  *
+  //  * @param source
+  //  * @param target
+  //  * @param tolerance_config
+  //  * @return
+  //  */
+  // [[nodiscard]]
+  // std::vector<Transform>
+  // generate_candidates(const std::set<Segment> &source,
+  //                     const std::set<Segment> &target,
+  //                     const ToleranceConfig   &tolerance_config);
 
   /**
    * Check if `target = transform(source)`.
@@ -562,6 +562,6 @@ namespace UngaBunga
 
   } // namespace implementation_vdev
 
-} // namespace UngaBunga
+} // namespace geoma
 
-#endif // UNTITLED1_NORMALIZE_H
+#endif // GEOMA_ALGORITHMS_H

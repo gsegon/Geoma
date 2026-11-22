@@ -1,12 +1,10 @@
-#ifndef UNTITLED1_PRIMITIVES_H
-#define UNTITLED1_PRIMITIVES_H
+#ifndef GEOMA_PRIMITIVES_H
+#define GEOMA_PRIMITIVES_H
 #include <cmath>
 #include <tuple>
 
-// UngaBunga!!! Better not end up in production code, gonna Unga all the Bunga!!
-namespace UngaBunga
+namespace geoma
 {
-
 
   struct Point
   {
@@ -46,18 +44,22 @@ namespace UngaBunga
     const double c = std::cos(angle);
     const double s = std::sin(angle);
 
-    return Point{c * p.x - s * p.y + translation.x,
-                 s * p.x + c * p.y + translation.y};
+    return Point{.x = c * p.x - s * p.y + translation.x,
+                 .y = s * p.x + c * p.y + translation.y};
   }
 
   [[nodiscard]]
   inline Segment
   Transform::apply(const Segment &segment) const
   {
-    return Segment{apply(segment.p1), apply(segment.p2)};
+    return Segment
+    {
+      .p1 = apply(segment.p1),
+      .p2 = apply(segment.p2)
+    };
   }
 
 
-} // namespace UngaBunga
+} // namespace geoma
 
-#endif // UNTITLED1_PRIMITIVES_H
+#endif // GEOMA_PRIMITIVES_H
