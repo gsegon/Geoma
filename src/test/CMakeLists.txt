@@ -3,6 +3,7 @@ add_executable(test_algorithms
         test_algorithms_canonicalize.cpp
         test_algorithms_verify_equal.cpp
         test_algorithms_find_transform.cpp
+        test_algorithms_rotational_symmetry.cpp
 
 )
 

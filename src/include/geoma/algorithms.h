@@ -74,6 +74,21 @@ namespace geoma
                  std::span<Segment const> target,
                  ToleranceConfig const&   tolerance_config);
 
+
+
+  /**
+   * Detect if the set of segments has a rotational symmetry.
+   * @param segments
+   * @param tol
+   * @return
+   */
+  [[nodiscard]]
+  inline bool
+  has_rotational_symmetry(
+    std::span<Segment const> segments,
+    double tol
+  );
+
   // Public API - End
 
   namespace implementation_vdev
@@ -106,6 +121,11 @@ namespace geoma
                    std::span<Segment const> target,
                    ToleranceConfig const&   tolerance_config);
 
+    [[nodiscard]]
+    inline bool
+    has_rotational_symmetry(std::span<Segment const> segments, double tol);
+
+
   } // namespace implementation_vdev
 
   [[nodiscard]]
@@ -129,8 +149,8 @@ namespace geoma
 
   [[nodiscard]]
   inline bool
-  verify_equal(std::span<Segment const>  source,
-               std::span<Segment const>  target,
+  verify_equal(std::span<Segment const> source,
+               std::span<Segment const> target,
                Transform const&         transform,
                double                   tol)
   {
@@ -147,6 +167,14 @@ namespace geoma
                                                target,
                                                tolerance_config);
   }
+
+  [[nodiscard]]
+  inline bool
+  has_rotational_symmetry(std::span<Segment const> segments, double tol)
+  {
+    return implementation_vdev::has_rotational_symmetry(segments, tol);
+  }
+
 
   namespace implementation_vdev
   {
@@ -639,34 +667,38 @@ namespace geoma
     }
 
     [[nodiscard]]
-  inline bool verify_equal(
-    std::span<Segment const> source,
-    std::span<Segment const> target,
-    Transform const& transform,
-    double tol
-  ) {
-      if (!std::isfinite(tol) || tol < 0.0) {
-        throw std::invalid_argument("verify_equal: invalid tolerance");
-      }
+    inline bool
+    verify_equal(std::span<Segment const> source,
+                 std::span<Segment const> target,
+                 Transform const&         transform,
+                 double                   tol)
+    {
+      if (!std::isfinite(tol) || tol < 0.0)
+        {
+          throw std::invalid_argument("verify_equal: invalid tolerance");
+        }
 
-      if (source.empty() || target.empty()) {
-        return source.empty() && target.empty();
-      }
+      if (source.empty() || target.empty())
+        {
+          return source.empty() && target.empty();
+        }
 
       // Transform the already canonicalized source.
       std::vector<Segment> transformed;
       transformed.reserve(source.size());
 
-      for (auto const& segment : source) {
-        transformed.push_back(transform.apply(segment));
-      }
+      for (auto const& segment : source)
+        {
+          transformed.push_back(transform.apply(segment));
+        }
 
       // Check whether the transformed source is covered by target.
       detail::SegmentBvh target_index(target);
 
-      if (!detail::covered_by(transformed, target_index, tol)) {
-        return false;
-      }
+      if (!detail::covered_by(transformed, target_index, tol))
+        {
+          return false;
+        }
 
       // Check whether target is covered by transformed source.
       detail::SegmentBvh source_index(transformed);
@@ -747,6 +779,119 @@ namespace geoma
         }
       return std::nullopt;
     }
+
+    [[nodiscard]]
+    inline bool
+    has_rotational_symmetry(std::span<Segment const> segments, double tol)
+    {
+      if (!std::isfinite(tol) || tol < 0.0)
+        {
+          throw std::invalid_argument("invalid tolerance");
+        }
+
+      if (segments.empty())
+        {
+          return false;
+        }
+
+      // Compute the length-weighted geometric center.
+      Point  center{};
+      double total_length = 0.0;
+
+      for (auto const& s : segments)
+        {
+          double const len = std::hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y);
+
+          if (!std::isfinite(len))
+            {
+              throw std::invalid_argument("invalid segment");
+            }
+
+          if (len <= tol)
+            {
+              continue;
+            }
+
+          center.x += (s.p1.x + s.p2.x) * 0.5 * len;
+          center.y += (s.p1.y + s.p2.y) * 0.5 * len;
+          total_length += len;
+        }
+
+      if (total_length <= 0.0)
+        {
+          return false;
+        }
+
+      center.x /= total_length;
+      center.y /= total_length;
+
+      // Find an endpoint farthest from the center.
+      Point  anchor{};
+      double radius = 0.0;
+
+      for (auto const& s : segments)
+        {
+          for (auto const& p : {s.p1, s.p2})
+            {
+              double const r = std::hypot(p.x - center.x, p.y - center.y);
+
+              if (r > radius)
+                {
+                  radius = r;
+                  anchor = p;
+                }
+            }
+        }
+
+      if (radius <= tol)
+        {
+          return false;
+        }
+
+      double const ax = anchor.x - center.x;
+      double const ay = anchor.y - center.y;
+
+      // Test rotations mapping the anchor to other endpoints.
+      for (auto const& [p1, p2] : segments)
+        {
+          for (auto const& p : {p1, p2})
+            {
+              double const bx = p.x - center.x;
+              double const by = p.y - center.y;
+
+              if (std::abs(std::hypot(bx, by) - radius) > tol)
+                {
+                  continue;
+                }
+
+              double const angle =
+                std::atan2(ax * by - ay * bx, ax * bx + ay * by);
+
+              // Ignore the identity rotation.
+              if (std::abs(angle) <= std::max(1e-12, tol / radius))
+                {
+                  continue;
+                }
+
+              double const c  = std::cos(angle);
+              double const sn = std::sin(angle);
+
+              Transform transform{
+                .angle       = angle,
+                .translation = {center.x - (c * center.x - sn * center.y),
+                                center.y - (sn * center.x + c * center.y)}};
+
+              if (implementation_vdev::verify_equal(
+                    segments, segments, transform, tol))
+                {
+                  return true;
+                }
+            }
+        }
+
+      return false;
+    }
+
 
   } // namespace implementation_vdev
 
