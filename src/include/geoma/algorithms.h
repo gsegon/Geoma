@@ -17,6 +17,78 @@ namespace geoma
 {
   // Public API - Start
 
+  // User customization - Point
+  template<class T>
+  struct point_traits;
+
+  // User customization - Segment
+  template<class T>
+  struct segment_traits;
+
+
+  template<class T>
+  concept PointLike = requires(T const& p, double x, double y)
+  {
+      { point_traits<T>::x(p) } -> std::convertible_to<double>;
+      { point_traits<T>::y(p) } -> std::convertible_to<double>;
+      { point_traits<T>::make(x, y) } -> std::same_as<T>;
+  };
+
+  template<class T>
+  concept SegmentLike = requires(
+    T const& s,
+    typename segment_traits<T>::point_type p
+    )
+  {
+      typename segment_traits<T>::point_type;
+
+      requires PointLike<typename segment_traits<T>::point_type>;
+
+      { segment_traits<T>::p1(s) }
+      -> std::convertible_to<typename segment_traits<T>::point_type>;
+
+      { segment_traits<T>::p2(s) }
+      -> std::convertible_to<typename segment_traits<T>::point_type>;
+
+      { segment_traits<T>::make(p, p) } -> std::same_as<T>;
+  };
+
+
+  template<>
+  struct point_traits<Point> {
+    using point_type = Point;
+
+    static double x(point_type const& p) {
+      return p.x;
+    }
+
+    static double y(point_type const& p) {
+      return p.y;
+    }
+
+    static point_type make(double x, double y) {
+      return {x, y};
+    }
+  };
+
+  template<>
+  struct segment_traits<Segment> {
+    using segment_type = Segment;
+    using point_type = Point;
+
+    static point_type p1(segment_type const& s) {
+      return s.p1;
+    }
+
+    static point_type p2(segment_type const& s) {
+      return s.p2;
+    }
+
+    static segment_type make(point_type p1, point_type p2) {
+      return {.p1 = p1, .p2 = p2};
+    }
+  };
+
   /**
    * Check for invalid segments, do any preconditioning that might be beneficial
    * for performance. Can be no-op initially.
@@ -38,9 +110,10 @@ namespace geoma
    * @param tolerance_config
    * @return
    */
+  template<SegmentLike S>
   [[nodiscard]]
-  std::vector<Segment>
-  canonicalize(std::span<Segment const> segments,
+  std::vector<S>
+  canonicalize(std::span<S const> segments,
                ToleranceConfig const&   tolerance_config);
 
 
@@ -97,10 +170,17 @@ namespace geoma
     normalize(std::vector<Segment>   segments,
               ToleranceConfig const& tolerance_config);
 
+    template<SegmentLike S>
     [[nodiscard]]
-    std::vector<Segment>
-    canonicalize(std::span<Segment const> segments,
+    std::vector<S>
+    canonicalize(std::span<S const> segments,
                  ToleranceConfig const&   tolerance_config);
+
+    template<SegmentLike S>
+    [[nodiscard]]
+    std::vector<S>
+    canonicalize(std::vector<S> const& segments,
+                 ToleranceConfig const& tolerance_config);
 
     [[nodiscard]]
     std::vector<Transform>
@@ -128,13 +208,26 @@ namespace geoma
 
   } // namespace implementation_vdev
 
+  template<SegmentLike S>
   [[nodiscard]]
-  inline std::vector<Segment>
-  canonicalize(std::span<Segment const> segments,
+  inline std::vector<S>
+  canonicalize(std::span<S const> segments,
                ToleranceConfig const&   tolerance_config)
   {
-    return implementation_vdev::canonicalize(segments, tolerance_config);
+    return implementation_vdev::canonicalize<S>(segments, tolerance_config);
   }
+
+  template<SegmentLike S>
+  [[nodiscard]]
+  inline std::vector<S>
+  canonicalize(std::vector<S> const& segments,
+               ToleranceConfig const& tolerance_config)
+    {
+      return canonicalize<S>(
+        std::span<S const>{segments},
+        tolerance_config
+      );
+    }
 
   [[nodiscard]]
   inline std::vector<Transform>
@@ -181,20 +274,7 @@ namespace geoma
 
     namespace detail
     {
-      // Signed perpendicular distances to the
-      // supporting line of s1.
-      inline auto signed_distance = [](Segment const& s,
-                                       Point const&   p) -> double {
-        double const dx = s.p2.x - s.p1.x;
-        double const dy = s.p2.y - s.p1.y;
 
-        double const len = std::hypot(dx, dy);
-
-        if (len == 0.0)
-          throw std::invalid_argument("signed_distance: degenerate segment");
-
-        return (dx * (p.y - s.p1.y) - dy * (p.x - s.p1.x)) / len;
-      };
 
       inline auto project = [](Segment const& s, Point const& p) -> double {
         double const dx = s.p2.x - s.p1.x;
@@ -483,144 +563,168 @@ namespace geoma
 
 
 
-    [[nodiscard]]
-    inline std::vector<Segment>
-    canonicalize(std::span<Segment const> segments,
-                 ToleranceConfig const&   tolerance_config)
+
+  template<SegmentLike S>
+  [[nodiscard]]
+  std::vector<S>
+  canonicalize(std::span<S const> segments,
+               ToleranceConfig const& tolerance_config)
+  {
+    using ST = segment_traits<S>;
+    using P = typename ST::point_type;
+    using PT = point_traits<P>;
+
+    double const tol = tolerance_config.tol;
+
+    if (!std::isfinite(tol) || tol < 0.0)
+      {
+        throw std::invalid_argument("canonicalize: invalid tolerance");
+      }
+
+    struct LineKey
     {
-      double const tol = tolerance_config.tol;
+      double ux;
+      double uy;
+      double offset;
 
-      if (!std::isfinite(tol) || tol < 0.0)
-        {
-          throw std::invalid_argument("canonicalize: invalid tolerance");
-        }
+      bool
+      operator==(LineKey const&) const = default;
+    };
 
-      struct LineKey
+    struct LineHash
+    {
+      std::size_t
+      operator()(LineKey const& key) const noexcept
       {
-        double ux;
-        double uy;
-        double offset;
+        std::size_t h = std::hash<double>{}(key.ux);
 
-        bool
-        operator==(LineKey const&) const = default;
-      };
+        auto combine = [&](double value) {
+          h ^= std::hash<double>{}(value) + 0x9e3779b97f4a7c15ULL +
+               (h << 6) + (h >> 2);
+        };
 
-      struct LineHash
+        combine(key.uy);
+        combine(key.offset);
+
+        return h;
+      }
+    };
+
+    struct Interval
+    {
+      double lo;
+      double hi;
+      P p_lo;
+      P p_hi;
+    };
+
+    std::unordered_map<LineKey, std::vector<Interval>, LineHash> groups;
+
+    // Group segments by supporting line.
+    for (auto const& s : segments)
       {
-        std::size_t
-        operator()(LineKey const& key) const noexcept
-        {
-          std::size_t h = std::hash<double>{}(key.ux);
+        P const p1 = ST::p1(s);
+        P const p2 = ST::p2(s);
 
-          auto combine = [&](double value) {
-            h ^= std::hash<double>{}(value) + 0x9e3779b97f4a7c15ULL + (h << 6) +
-                 (h >> 2);
-          };
+        double const x1 = PT::x(p1);
+        double const y1 = PT::y(p1);
+        double const x2 = PT::x(p2);
+        double const y2 = PT::y(p2);
 
-          combine(key.uy);
-          combine(key.offset);
+        double const dx = x2 - x1;
+        double const dy = y2 - y1;
+        double const len = std::hypot(dx, dy);
 
-          return h;
-        }
-      };
+        if (!std::isfinite(len))
+          {
+            throw std::invalid_argument("canonicalize: invalid segment");
+          }
 
-      struct Interval
+        if (len <= tol)
+          {
+            continue;
+          }
+
+        double ux = dx / len;
+        double uy = dy / len;
+
+        // Canonicalize the supporting line direction.
+        if (ux < 0.0 || (ux == 0.0 && uy < 0.0))
+          {
+            ux = -ux;
+            uy = -uy;
+          }
+
+        double const offset = -uy * x1 + ux * y1;
+
+        // Use the dominant coordinate as the interval axis.
+        bool const use_x = std::abs(ux) >= std::abs(uy);
+
+        double const t1 = use_x ? x1 : y1;
+        double const t2 = use_x ? x2 : y2;
+
+        if (!std::isfinite(offset) ||
+            !std::isfinite(t1) ||
+            !std::isfinite(t2))
+          {
+            throw std::invalid_argument("canonicalize: invalid coordinates");
+          }
+
+        auto& intervals = groups[LineKey{ux, uy, offset}];
+
+        if (t1 <= t2)
+          {
+            intervals.push_back({t1, t2, p1, p2});
+          }
+        else
+          {
+            intervals.push_back({t2, t1, p2, p1});
+          }
+      }
+
+    std::vector<S> result;
+    result.reserve(groups.size());
+
+    // Sort and merge intervals within each supporting line.
+    for (auto& [line, intervals] : groups)
       {
-        double lo;
-        double hi;
-        Point  p_lo;
-        Point  p_hi;
-      };
+        std::ranges::sort(intervals, {}, &Interval::lo);
 
-      std::unordered_map<LineKey, std::vector<Interval>, LineHash> groups;
+        double const axis_tol =
+          tol * std::max(std::abs(line.ux), std::abs(line.uy));
 
-      // Group segments by supporting line.
-      for (auto const& s : segments)
-        {
-          double const dx  = s.p2.x - s.p1.x;
-          double const dy  = s.p2.y - s.p1.y;
-          double const len = std::hypot(dx, dy);
+        Interval merged = intervals.front();
 
-          if (!std::isfinite(len))
-            {
-              throw std::invalid_argument("canonicalize: invalid segment");
-            }
+        for (std::size_t i = 1; i < intervals.size(); ++i)
+          {
+            auto const& next = intervals[i];
 
-          if (len <= tol)
-            {
-              continue;
-            }
+            if (next.lo <= merged.hi + axis_tol)
+              {
+                if (next.hi > merged.hi)
+                  {
+                    merged.hi = next.hi;
+                    merged.p_hi = next.p_hi;
+                  }
+              }
+            else
+              {
+                result.push_back(
+                  ST::make(merged.p_lo, merged.p_hi)
+                );
 
-          double ux = dx / len;
-          double uy = dy / len;
+                merged = next;
+              }
+          }
 
-          if (ux < 0.0 || (ux == 0.0 && uy < 0.0))
-            {
-              ux = -ux;
-              uy = -uy;
-            }
+        result.push_back(
+          ST::make(merged.p_lo, merged.p_hi)
+        );
+      }
 
-          double const offset = -uy * s.p1.x + ux * s.p1.y;
-          bool const   use_x  = std::abs(ux) >= std::abs(uy);
+    return result;
+  }
 
-          double const t1 = use_x ? s.p1.x : s.p1.y;
-          double const t2 = use_x ? s.p2.x : s.p2.y;
-
-          if (!std::isfinite(offset) || !std::isfinite(t1) ||
-              !std::isfinite(t2))
-            {
-              throw std::invalid_argument("canonicalize: invalid coordinates");
-            }
-
-          auto& intervals = groups[LineKey{ux, uy, offset}];
-
-          if (t1 <= t2)
-            {
-              intervals.push_back({t1, t2, s.p1, s.p2});
-            }
-          else
-            {
-              intervals.push_back({t2, t1, s.p2, s.p1});
-            }
-        }
-
-      std::vector<Segment> result;
-      result.reserve(groups.size());
-
-      // Sort and merge intervals within each supporting line.
-      for (auto& [line, intervals] : groups)
-        {
-          std::ranges::sort(intervals, {}, &Interval::lo);
-
-          double const axis_tol =
-            tol * std::max(std::abs(line.ux), std::abs(line.uy));
-
-          Interval merged = intervals.front();
-
-          for (std::size_t i = 1; i < intervals.size(); ++i)
-            {
-              auto const& next = intervals[i];
-
-              if (next.lo <= merged.hi + axis_tol)
-                {
-                  if (next.hi > merged.hi)
-                    {
-                      merged.hi   = next.hi;
-                      merged.p_hi = next.p_hi;
-                    }
-                }
-              else
-                {
-                  result.push_back({merged.p_lo, merged.p_hi});
-                  merged = next;
-                }
-            }
-
-          result.push_back({merged.p_lo, merged.p_hi});
-        }
-
-      return result;
-    }
 
 
 

@@ -7,7 +7,7 @@ using namespace geoma;
 
 /**
  * Two co-linear segments: {{0.0, 0.0}, {1.0, 0.0}} and {{1.0, 0.0}, {3.0,
- * 0.0}}. No overlap. Canonicalize must produce a set with only one segment:
+ * 0.0}}. No overlap. Canonicalization must produce a set with only one segment:
  * {{0.0, 0.0}, {3.0, 0.0}}
  */
 TEST(TestAlgorithms, canonicalize_01)
@@ -15,7 +15,7 @@ TEST(TestAlgorithms, canonicalize_01)
   std::vector<Segment> segments{{{0.0, 0.0}, {1.0, 0.0}},
                                 {{1.0, 0.0}, {3.0, 0.0}}};
 
-  auto const result = canonicalize(segments, ToleranceConfig{});
+  auto const result = canonicalize<Segment>(segments, ToleranceConfig{});
 
   ASSERT_EQ(result.size(), 1);
 
@@ -29,7 +29,7 @@ TEST(TestAlgorithms, canonicalize_01)
 
 /**
  * Two non-co-linear segments: {{0.0, 0.0}, {3.0, 0.0}} and {{3.0, 0.0},
- * {3.0, 2.0}}. Not co-linear. Canonicalize must produce a set with two
+ * {3.0, 2.0}}. Not co-linear. Canonicalization must produce a set with two
  * segments.
  */
 TEST(TestAlgorithms, canonicalize_02)
@@ -97,7 +97,7 @@ TEST(TestAlgorithms, canonicalize_04)
   config.tol = 1e-8;
 
   auto const start  = std::chrono::steady_clock::now();
-  auto const result = canonicalize(segments, config);
+  auto const result = canonicalize(segments, ToleranceConfig{});
   auto const elapsed =
     std::chrono::duration<double>(std::chrono::steady_clock::now() - start)
       .count();
