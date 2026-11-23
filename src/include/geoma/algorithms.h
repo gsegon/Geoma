@@ -7,7 +7,6 @@
 #include <geoma/primitives.h>
 #include <numeric>
 #include <optional>
-#include <set>
 #include <span>
 #include <stdexcept>
 #include <unordered_map>
@@ -24,6 +23,11 @@ namespace geoma
   // User customization - Segment
   template<class T>
   struct segment_traits;
+
+  // User customization - Transform
+  template<class T>
+  struct transform_traits;
+
 
 
   template<class T>
@@ -51,6 +55,47 @@ namespace geoma
       -> std::convertible_to<typename segment_traits<T>::point_type>;
 
       { segment_traits<T>::make(p, p) } -> std::same_as<T>;
+  };
+
+  template<class T>
+  concept TransformLike =
+    requires
+    (
+      T const& t,
+      typename transform_traits<T>::point_type const& p,
+      typename transform_traits<T>::segment_type const& s,
+      double angle
+    )
+  {
+    // Check that transform traits actually define both of these
+    typename transform_traits<T>::point_type;
+    typename transform_traits<T>::segment_type;
+
+    // Make sure they satisfy the PointLike and SegmentLike concepts
+    requires PointLike<typename transform_traits<T>::point_type>;
+    requires SegmentLike<typename transform_traits<T>::segment_type>;
+
+    // Make sure that point type of segment type of transform
+    // is same as tranform point type
+    requires std::same_as<
+        typename segment_traits<typename transform_traits<T>::segment_type>::point_type
+      , typename transform_traits<T>::point_type>;
+
+    // Check the transformation can transform points
+    {
+      transform_traits<T>::apply(t, p)
+    } -> std::same_as<typename transform_traits<T>::point_type>;
+
+    // Check the transformation can transform segments
+    {
+      transform_traits<T>::apply(t, s)
+    } -> std::same_as<typename transform_traits<T>::segment_type>;
+
+    // Check that the transform can be constructed from angle and point.
+    {
+      transform_traits<T>::make(angle, p)
+    } -> std::same_as<T>;
+
   };
 
 
@@ -89,6 +134,41 @@ namespace geoma
     }
   };
 
+
+  template<>
+  struct transform_traits<Transform>
+    {
+      using transform_type = Transform;
+      using point_type = Point;
+      using segment_type = Segment;
+
+      [[nodiscard]]
+      static point_type apply(transform_type const& t,
+                              point_type const& p)
+      {
+        return t.apply(p);
+      }
+
+      [[nodiscard]]
+      static segment_type apply(transform_type const& t,
+                                segment_type const& s)
+      {
+        return t.apply(s);
+      }
+
+      [[nodiscard]]
+      static transform_type make(double angle,
+                                 point_type const& translation)
+      {
+        return Transform{
+          .angle = angle,
+          .translation = translation
+        };
+      }
+    };
+
+
+
   /**
    * Check for invalid segments, do any preconditioning that might be beneficial
    * for performance. Can be no-op initially.
@@ -126,12 +206,15 @@ namespace geoma
    * @param tol
    * @return
    */
+  template<SegmentLike S, TransformLike TR>
   [[nodiscard]]
   bool
-  verify_equal(std::set<Segment> const& source,
-               std::set<Segment> const& target,
-               Transform const&         transform,
+  verify_equal(std::span<S const> source,
+               std::span<S const> target,
+               TR const&         transform,
                double                   tol);
+
+
 
 
   /**
@@ -141,12 +224,20 @@ namespace geoma
    * @param tolerance_config
    * @return
    */
+  template<SegmentLike S, TransformLike TR>
   [[nodiscard]]
-  std::optional<Transform>
-  find_transform(std::span<Segment const> source,
-                 std::span<Segment const> target,
+  std::optional<TR>
+  find_transform(std::span<S const> source,
+                 std::span<S const> target,
                  ToleranceConfig const&   tolerance_config);
 
+
+  template<SegmentLike S, TransformLike TR = Transform>
+  [[nodiscard]]
+  std::optional<TR>
+  find_transform(std::vector<S> const& source,
+                 std::vector<S> const& target,
+                 ToleranceConfig const& tolerance_config);
 
 
   /**
@@ -155,15 +246,19 @@ namespace geoma
    * @param tol
    * @return
    */
+  template<SegmentLike S, TransformLike TR = Transform>
   [[nodiscard]]
   inline bool
   has_rotational_symmetry(
-    std::span<Segment const> segments,
+    std::span<S const> segments,
     double tol
   );
 
   // Public API - End
 
+  /**
+   * Implementation declaration sections
+   */
   namespace implementation_vdev
   {
     inline std::vector<Segment>
@@ -176,34 +271,26 @@ namespace geoma
     canonicalize(std::span<S const> segments,
                  ToleranceConfig const&   tolerance_config);
 
-    template<SegmentLike S>
-    [[nodiscard]]
-    std::vector<S>
-    canonicalize(std::vector<S> const& segments,
-                 ToleranceConfig const& tolerance_config);
 
-    [[nodiscard]]
-    std::vector<Transform>
-    generate_candidates(std::set<Segment> const& source,
-                        std::set<Segment> const& target,
-                        ToleranceConfig const&   tolerance_config);
-
+    template<SegmentLike S, TransformLike TR>
     [[nodiscard]]
     bool
-    verify_equal(std::span<Segment const> source,
-                 std::span<Segment const> target,
-                 Transform const&         transform,
+    verify_equal(std::span<S const> source,
+                 std::span<S const> target,
+                 TR const&         transform,
                  double                   tol);
 
+    template<SegmentLike S, TransformLike TR>
     [[nodiscard]]
-    std::optional<Transform>
-    find_transform(std::span<Segment const> source,
-                   std::span<Segment const> target,
+    std::optional<TR>
+    find_transform(std::span<S const> source,
+                   std::span<S const> target,
                    ToleranceConfig const&   tolerance_config);
 
+    template<SegmentLike S, TransformLike TR>
     [[nodiscard]]
     inline bool
-    has_rotational_symmetry(std::span<Segment const> segments, double tol);
+    has_rotational_symmetry(std::span<S const> segments, double tol);
 
 
   } // namespace implementation_vdev
@@ -229,43 +316,75 @@ namespace geoma
       );
     }
 
-  [[nodiscard]]
-  inline std::vector<Transform>
-  generate_candidates(std::set<Segment> const& source,
-                      std::set<Segment> const& target,
-                      ToleranceConfig const&   tolerance_config)
-  {
-    return implementation_vdev::generate_candidates(source,
-                                                    target,
-                                                    tolerance_config);
-  }
 
+  template<SegmentLike S, TransformLike TR>
   [[nodiscard]]
   inline bool
-  verify_equal(std::span<Segment const> source,
-               std::span<Segment const> target,
-               Transform const&         transform,
+  verify_equal(std::span<S const> source,
+               std::span<S const> target,
+               TR const&         transform,
                double                   tol)
   {
-    return implementation_vdev::verify_equal(source, target, transform, tol);
+    return implementation_vdev::verify_equal<S, TR>(source, target, transform, tol);
   }
 
+  template<SegmentLike S, TransformLike TR>
   [[nodiscard]]
-  inline std::optional<Transform>
-  find_transform(std::span<Segment const> source,
-                 std::span<Segment const> target,
+  inline bool
+  verify_equal(std::vector<S> const& source,
+               std::vector<S> const& target,
+               TR const& transform,
+               double tolerance)
+    {
+      return verify_equal<S, TR>(
+        std::span<S const>{source},
+        std::span<S const>{target},
+        transform,
+        tolerance
+      );
+    }
+
+  template<SegmentLike S, TransformLike TR>
+  [[nodiscard]]
+  inline std::optional<TR>
+  find_transform(std::span<S const> source,
+                 std::span<S const> target,
                  ToleranceConfig const&   tolerance_config)
   {
-    return implementation_vdev::find_transform(source,
+    return implementation_vdev::find_transform<S, TR>(source,
                                                target,
                                                tolerance_config);
   }
 
+  template<SegmentLike S, TransformLike TR>
+  [[nodiscard]]
+  inline std::optional<TR>
+  find_transform(std::vector<S> const& source,
+                 std::vector<S> const& target,
+                 ToleranceConfig const& tolerance_config)
+    {
+      return find_transform<S, TR>(
+        std::span<S const>{source},
+        std::span<S const>{target},
+        tolerance_config
+      );
+    }
+
+
+  template<SegmentLike S, TransformLike TR>
   [[nodiscard]]
   inline bool
-  has_rotational_symmetry(std::span<Segment const> segments, double tol)
+  has_rotational_symmetry(std::span<S const> segments, double tol)
   {
-    return implementation_vdev::has_rotational_symmetry(segments, tol);
+    return implementation_vdev::has_rotational_symmetry<S, TR>(segments, tol);
+  }
+
+  template<SegmentLike S, TransformLike TR  = Transform>
+  [[nodiscard]]
+  inline bool
+  has_rotational_symmetry(std::vector<S> const& segments, double tol)
+  {
+    return implementation_vdev::has_rotational_symmetry<S, TR>(std::span<S const>{segments}, tol);
   }
 
 
@@ -276,40 +395,71 @@ namespace geoma
     {
 
 
-      inline auto project = [](Segment const& s, Point const& p) -> double {
-        double const dx = s.p2.x - s.p1.x;
-        double const dy = s.p2.y - s.p1.y;
+      /**
+       * Calculate the parametric value of the point P on segment S.
+       * 0 - if P is at the P1 of the segment
+       * 1 - if P is at the P2 of the segment
+       * Linear in between.
+       * @tparam S Segment
+       * @tparam P Point
+       */
+      template <SegmentLike S, PointLike P>
+      inline auto project = [](S const& s, P const& p) -> double {
+
+        using ST = segment_traits<S>;
+        using PT = point_traits<P>;
+
+        double const dx = PT::x(ST::p2(s)) - PT::x(ST::p1(s));
+        double const dy = PT::y(ST::p2(s)) - PT::y(ST::p1(s));
 
         double const len = std::hypot(dx, dy);
 
         if (len == 0.0)
           throw std::invalid_argument("project: degenerate segment");
 
-        return (dx * (p.x - s.p1.x) + dy * (p.y - s.p1.y)) / len;
+        return (dx * (PT::x(p) - PT::x(ST::p1(s))) + dy * (PT::y(p) - PT::y(ST::p1(s)))) / len;
       };
 
-      inline auto make_transform = [](Point const& source_p1,
-                                      Point const& source_p2,
-                                      Point const& target_p1,
-                                      Point const& target_p2) -> Transform {
-        double const sx = source_p2.x - source_p1.x;
-        double const sy = source_p2.y - source_p1.y;
+      /**
+       * make a transform between the would be segments
+       *  {source_p1, source_p2}
+       *  {target_p1, target_p2}
+       *
+       * @tparam P
+       */
+      template <PointLike P, TransformLike TR>
+      inline auto make_transform = [](P const& source_p1,
+                                      P const& source_p2,
+                                      P const& target_p1,
+                                      P const& target_p2) -> TR {
 
-        double const tx = target_p2.x - target_p1.x;
-        double const ty = target_p2.y - target_p1.y;
+        using PT = point_traits<P>;
+        using TRT = transform_traits<TR>;
+
+        double const sx = PT::x(source_p2) - PT::x(source_p1);
+        double const sy = PT::y(source_p2) - PT::y(source_p1);
+
+        double const tx = PT::x(target_p2) - PT::x(target_p1);
+        double const ty = PT::y(target_p2) - PT::y(target_p1);
 
         double const angle = std::atan2(ty, tx) - std::atan2(sy, sx);
 
         double const c = std::cos(angle);
         double const s = std::sin(angle);
 
-        Point translation{target_p1.x - (c * source_p1.x - s * source_p1.y),
-                          target_p1.y - (s * source_p1.x + c * source_p1.y)};
+        Point const translation
+        {
+          .x = PT::x(target_p1) - (c * PT::x(source_p1) - s * PT::y(source_p1)),
+          .y = PT::y(target_p1) - (s * PT::x(source_p1) + c * PT::y(source_p1))
+        };
 
-        return Transform{.angle = angle, .translation = translation};
+        return TRT::make(angle, translation);
       };
 
 
+      /**
+       * Struct to hold segment bounds for BVH
+       */
       struct SegmentBounds
       {
         double min_x;
@@ -318,13 +468,19 @@ namespace geoma
         double max_y;
       };
 
+      template<SegmentLike S>
       inline SegmentBounds
-      segment_bounds(Segment const& s)
+      segment_bounds(S const& s)
       {
-        return {std::min(s.p1.x, s.p2.x),
-                std::min(s.p1.y, s.p2.y),
-                std::max(s.p1.x, s.p2.x),
-                std::max(s.p1.y, s.p2.y)};
+        using ST = segment_traits<S>;
+        using PT = point_traits<typename ST::point_type>;
+
+        return {
+          .min_x = std::min(PT::x(ST::p1(s)), PT::x(ST::p2(s))),
+          .min_y = std::min(PT::y(ST::p1(s)), PT::y(ST::p2(s))),
+          .max_x = std::max(PT::x(ST::p1(s)), PT::x(ST::p2(s))),
+          .max_y = std::max(PT::y(ST::p1(s)), PT::y(ST::p2(s)))
+        };
       }
 
       inline bool
@@ -335,6 +491,7 @@ namespace geoma
       }
 
       // Bounding-volume hierarchy for fast spatial queries.
+      template<SegmentLike S>
       struct SegmentBvh
       {
         static constexpr std::size_t npos = static_cast<std::size_t>(-1);
@@ -348,12 +505,12 @@ namespace geoma
           std::size_t   right = npos;
         };
 
-        std::span<Segment const>   segments;
+        std::span<S const>   segments;
         std::vector<SegmentBounds> boxes;
         std::vector<std::size_t>   order;
         std::vector<Node>          nodes;
 
-        explicit SegmentBvh(std::span<Segment const> input)
+        explicit SegmentBvh(std::span<S const> input)
           : segments(input)
         {
           boxes.reserve(segments.size());
@@ -464,17 +621,33 @@ namespace geoma
 
       // Check whether every segment in source is covered by
       // a union of approximately collinear target segments.
+      template<SegmentLike S>
       inline bool
-      covered_by(std::span<Segment const> source,
-                 SegmentBvh const&        target,
+      covered_by(std::span<S const> source,
+                 SegmentBvh<S> const&        target,
                  double                   tol)
       {
+
+
         std::vector<std::pair<double, double>> intervals;
 
         for (auto const& s : source)
           {
-            double const dx  = s.p2.x - s.p1.x;
-            double const dy  = s.p2.y - s.p1.y;
+
+            using ST = segment_traits<S>;
+            using P = ST::point_type;
+            using PT = point_traits<P>;
+
+            P const p1 = ST::p1(s);
+            P const p2 = ST::p2(s);
+
+            double const x1 = PT::x(p1);
+            double const y1 = PT::y(p1);
+            double const x2 = PT::x(p2);
+            double const y2 = PT::y(p2);
+
+            double const dx  = x2 - x1;
+            double const dy  = y2 - y1;
             double const len = std::hypot(dx, dy);
 
             if (len <= tol)
@@ -495,11 +668,20 @@ namespace geoma
             box.max_x += tol;
             box.max_y += tol;
 
-            target.query(box, [&](Segment const& t) {
-              double const ax = t.p1.x - s.p1.x;
-              double const ay = t.p1.y - s.p1.y;
-              double const bx = t.p2.x - s.p1.x;
-              double const by = t.p2.y - s.p1.y;
+            target.query(box, [&](S const& t) {
+
+              P const pt1 = ST::p1(t);
+              P const pt2 = ST::p2(t);
+
+              double const t_x1 = PT::x(pt1);
+              double const t_y1 = PT::y(pt1);
+              double const t_x2 = PT::x(pt2);
+              double const t_y2 = PT::y(pt2);
+
+              double const ax = t_x1 - x1;
+              double const ay = t_y1 - y1;
+              double const bx = t_x2 - x1;
+              double const by = t_y2 - y1;
 
               // Both endpoints must lie within tolerance
               // of the supporting line of s.
@@ -550,6 +732,15 @@ namespace geoma
         return true;
       }
 
+      template<SegmentLike S>
+      inline bool
+      covered_by(std::vector<S> const& source,
+                 SegmentBvh<S> const&        target,
+                 double                   tol)
+      {
+        return covered_by(std::span<S const>(source), target, tol);
+      }
+
 
     } // namespace detail
 
@@ -563,7 +754,6 @@ namespace geoma
 
 
 
-
   template<SegmentLike S>
   [[nodiscard]]
   std::vector<S>
@@ -571,7 +761,7 @@ namespace geoma
                ToleranceConfig const& tolerance_config)
   {
     using ST = segment_traits<S>;
-    using P = typename ST::point_type;
+    using P = ST::point_type;
     using PT = point_traits<P>;
 
     double const tol = tolerance_config.tol;
@@ -728,53 +918,12 @@ namespace geoma
 
 
 
-    [[nodiscard]]
-    inline std::vector<Transform>
-    generate_candidates(std::set<Segment> const& source,
-                        std::set<Segment> const& target,
-                        ToleranceConfig const&   tolerance_config)
-    {
-      std::vector<Transform> candidates;
-
-      double const tol = tolerance_config.tol;
-
-      auto length = [](Segment const& s) -> double {
-        return std::hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y);
-      };
-
-      // Generate transformations for every compatible pair.
-      for (Segment const& s : source)
-        {
-          double const source_length = length(s);
-
-          if (source_length <= tol)
-            continue;
-
-          for (Segment const& t : target)
-            {
-              double const target_length = length(t);
-
-              if (std::abs(source_length - target_length) > tol)
-                continue;
-
-              // Corresponding endpoint orientations
-              candidates.push_back(
-                detail::make_transform(s.p1, s.p2, t.p1, t.p2));
-
-              // Reversed endpoint correspondence
-              candidates.push_back(
-                detail::make_transform(s.p1, s.p2, t.p2, t.p1));
-            }
-        }
-
-      return candidates;
-    }
-
+    template<SegmentLike S, TransformLike TR>
     [[nodiscard]]
     inline bool
-    verify_equal(std::span<Segment const> source,
-                 std::span<Segment const> target,
-                 Transform const&         transform,
+    verify_equal(std::span<S const> source,
+                 std::span<S const> target,
+                 TR const&         transform,
                  double                   tol)
     {
       if (!std::isfinite(tol) || tol < 0.0)
@@ -788,7 +937,7 @@ namespace geoma
         }
 
       // Transform the already canonicalized source.
-      std::vector<Segment> transformed;
+      std::vector<S> transformed;
       transformed.reserve(source.size());
 
       for (auto const& segment : source)
@@ -805,18 +954,24 @@ namespace geoma
         }
 
       // Check whether target is covered by transformed source.
-      detail::SegmentBvh source_index(transformed);
+      detail::SegmentBvh<S> source_index(transformed);
 
       return detail::covered_by(target, source_index, tol);
     }
 
 
+    template<SegmentLike S, TransformLike TR>
     [[nodiscard]]
-    inline std::optional<Transform>
-    find_transform(std::span<Segment const> source,
-                   std::span<Segment const> target,
+    inline std::optional<TR>
+    find_transform(std::span<S const> source,
+                   std::span<S const> target,
                    ToleranceConfig const&   tolerance_config)
     {
+
+      using ST = segment_traits<S>;
+      using P = ST::point_type;
+      using PT = point_traits<P>;
+
       double const tol = tolerance_config.tol;
 
       if (source.empty() || target.empty())
@@ -828,14 +983,26 @@ namespace geoma
           throw std::invalid_argument("Source or target is empty");
         }
 
-      auto length = [](Segment const& segment) -> double {
-        return std::hypot(segment.p2.x - segment.p1.x,
-                          segment.p2.y - segment.p1.y);
+      auto length = [](S const& s) -> double {
+
+        P const p1 = ST::p1(s);
+        P const p2 = ST::p2(s);
+
+        double const x1 = PT::x(p1);
+        double const y1 = PT::y(p1);
+        double const x2 = PT::x(p2);
+        double const y2 = PT::y(p2);
+
+        double const dx  = x2 - x1;
+        double const dy  = y2 - y1;
+        double const len = std::hypot(dx, dy);
+
+        return len;
       };
 
 
       // Try each compatible pair, stopping at the first valid transform.
-      for (Segment const& s : source)
+      for (S const& s : source)
         {
           double const source_length = length(s);
 
@@ -849,7 +1016,7 @@ namespace geoma
           // If length is equal construct the transform and check if the source
           // and target sets are equal under it. If they are, return early with
           // the transform.
-          for (Segment const& t : target)
+          for (S const& t : target)
             {
               // Filter: Check if lengths are the same, they have to be.
               // In canonical form of the segments set, each segment will have a
@@ -860,9 +1027,16 @@ namespace geoma
                   continue;
                 }
 
+              // Points
+              P const ps1 = ST::p1(s);
+              P const ps2 = ST::p2(s);
+
+              P const pt1 = ST::p1(t);
+              P const pt2 = ST::p2(t);
+
               // First endpoint correspondence.
-              Transform const forward =
-                detail::make_transform(s.p1, s.p2, t.p1, t.p2);
+              TR const forward =
+                detail::make_transform<P, TR>(ps1, ps2, pt1, pt2);
 
               if (implementation_vdev::verify_equal(
                     source, target, forward, tol))
@@ -871,8 +1045,9 @@ namespace geoma
                 }
 
               // Reversed endpoint correspondence.
-              Transform const reversed =
-                detail::make_transform(s.p1, s.p2, t.p2, t.p1);
+
+              TR const reversed =
+                detail::make_transform<P, TR>(ps1, ps2, pt2, pt1);
 
               if (implementation_vdev::verify_equal(
                     source, target, reversed, tol))
@@ -884,10 +1059,13 @@ namespace geoma
       return std::nullopt;
     }
 
+    template<SegmentLike S, TransformLike TR>
     [[nodiscard]]
     inline bool
-    has_rotational_symmetry(std::span<Segment const> segments, double tol)
+    has_rotational_symmetry(std::span<S const> segments, double tol)
     {
+
+
       if (!std::isfinite(tol) || tol < 0.0)
         {
           throw std::invalid_argument("invalid tolerance");
@@ -899,12 +1077,17 @@ namespace geoma
         }
 
       // Compute the length-weighted geometric center.
-      Point  center{};
+      using ST = segment_traits<S>;
+      using P = ST::point_type;
+      using PT = point_traits<P>;
+
+      P center = PT::make(0, 0);
+      
       double total_length = 0.0;
 
       for (auto const& s : segments)
         {
-          double const len = std::hypot(s.p2.x - s.p1.x, s.p2.y - s.p1.y);
+          double const len = std::hypot(PT::x(ST::p2(s)) - PT::x(ST::p1(s)), PT::y(ST::p2(s)) - PT::y(ST::p1(s)));
 
           if (!std::isfinite(len))
             {
@@ -916,8 +1099,8 @@ namespace geoma
               continue;
             }
 
-          center.x += (s.p1.x + s.p2.x) * 0.5 * len;
-          center.y += (s.p1.y + s.p2.y) * 0.5 * len;
+          center.x += (PT::x(ST::p1(s)) + PT::x(ST::p2(s))) * 0.5 * len;
+          center.y += (PT::y(ST::p1(s)) + PT::y(ST::p2(s))) * 0.5 * len;
           total_length += len;
         }
 
@@ -930,12 +1113,12 @@ namespace geoma
       center.y /= total_length;
 
       // Find an endpoint farthest from the center.
-      Point  anchor{};
+      P anchor = PT::make(0, 0);
       double radius = 0.0;
 
       for (auto const& s : segments)
         {
-          for (auto const& p : {s.p1, s.p2})
+          for (auto const& p : {ST::p1(s), ST::p2(s)})
             {
               double const r = std::hypot(p.x - center.x, p.y - center.y);
 
@@ -980,7 +1163,7 @@ namespace geoma
               double const c  = std::cos(angle);
               double const sn = std::sin(angle);
 
-              Transform transform{
+              TR transform{
                 .angle       = angle,
                 .translation = {center.x - (c * center.x - sn * center.y),
                                 center.y - (sn * center.x + c * center.y)}};

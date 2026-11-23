@@ -13,6 +13,6 @@ option(BUILD_TESTING "Enable building tests" OFF)
 # Add source
 add_subdirectory(src)
 
-# executable (remove)
-add_executable(untitled1 main.cpp)
-target_link_libraries(untitled1 PUBLIC geoma)
+# Add examples
+add_subdirectory(examples)
+

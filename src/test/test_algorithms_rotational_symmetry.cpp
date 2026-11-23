@@ -21,7 +21,8 @@ TEST(TestAlgorithms, has_rotational_symmetry_01) {
     {{0.0, 2.0}, {0.0, 0.0}}
   };
 
-  EXPECT_TRUE(has_rotational_symmetry(segments, 1e-8));
+  auto result = has_rotational_symmetry<Segment, Transform>(segments, 1e-8);
+  EXPECT_TRUE(result);
 }
 
 /**

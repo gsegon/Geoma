@@ -15,7 +15,7 @@ TEST(TestAlgorithms, canonicalize_01)
   std::vector<Segment> segments{{{0.0, 0.0}, {1.0, 0.0}},
                                 {{1.0, 0.0}, {3.0, 0.0}}};
 
-  auto const result = canonicalize<Segment>(segments, ToleranceConfig{});
+  auto const result = canonicalize(segments, ToleranceConfig{});
 
   ASSERT_EQ(result.size(), 1);
 

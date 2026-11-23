@@ -48,7 +48,7 @@ TEST(TestAlgorithms, find_transform_02) {
   ToleranceConfig config{};
   config.tol = 1e-8;
 
-  auto result = find_transform(source, target, config);
+  auto result = find_transform<Segment, Transform>(source, target, config);
 
   EXPECT_FALSE(result.has_value());
 }
@@ -92,7 +92,7 @@ TEST(TestAlgorithms, find_transform_03) {
 
   const auto start = std::chrono::steady_clock::now();
 
-  const auto result = find_transform(source, target, config);
+  const auto result = find_transform<Segment, Transform>(source, target, config);
 
   const auto elapsed = std::chrono::duration<double>(
     std::chrono::steady_clock::now() - start
