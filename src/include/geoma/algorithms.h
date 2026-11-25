@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <geoma/config.h>
-#include <geoma/primitives.h>
 #include <numeric>
 #include <optional>
 #include <span>
@@ -486,10 +484,10 @@ namespace geoma
         std::vector<std::size_t>   order;
         std::vector<Node>          nodes;
 
-        /**
-         *
-         * @param input
-         */
+        explicit SegmentBvh(std::vector<S> const& input)
+        : SegmentBvh(std::span<S const>{input})
+        {}
+
         explicit SegmentBvh(std::span<S const> input)
           : segments(input)
         {
@@ -937,6 +935,8 @@ namespace geoma
           throw std::invalid_argument("verify_equal: invalid tolerance");
         }
 
+      // If they are both empty, they are equal.
+      // Otherwise, they are not.
       if (source.empty() || target.empty())
         {
           return source.empty() && target.empty();
@@ -946,23 +946,26 @@ namespace geoma
       std::vector<S> transformed;
       transformed.reserve(source.size());
 
+      // Transform the source segments
       for (auto const& segment : source)
         {
           transformed.push_back(transform.apply(segment));
         }
 
-      // Check whether the transformed source is covered by target.
+      // Construct the BVH for the target segments.
       detail::SegmentBvh target_index(target);
 
+      // Check that evey segment of `transformed` is covered by `target`
       if (!detail::covered_by(transformed, target_index, tol))
         {
           return false;
         }
 
-      // Check whether target is covered by transformed source.
-      detail::SegmentBvh<S> source_index(transformed);
+      // Construct the BVH for the transformed segments.
+      detail::SegmentBvh transformed_index(transformed);
 
-      return detail::covered_by(target, source_index, tol);
+      // Check that evey segment of `target` is covered by `transformed`
+      return detail::covered_by(target, transformed_index, tol);
     }
 
 
