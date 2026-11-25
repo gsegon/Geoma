@@ -1,11 +1,13 @@
 
 #include "geoma/geoma.h"
+#include "test_user_customization_point.h"
 
 #include <gtest/gtest.h>
 #include <numbers>
 #include <vector>
 
 using namespace geoma;
+using namespace geoma_test;
 
 /**
  * Two sets in canonical form but - equal.

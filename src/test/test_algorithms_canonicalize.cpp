@@ -1,8 +1,10 @@
 #include <geoma/geoma.h>
+#include "test_user_customization_point.h"
 #include <gtest/gtest.h>
 
 
 using namespace geoma;
+using namespace geoma_test;
 
 
 /**
@@ -94,7 +96,7 @@ TEST(TestAlgorithms, canonicalize_04)
     }
 
   ToleranceConfig config{};
-  config.tol = 1e-8;
+  config.tolerance = 1e-8;
 
   auto const start  = std::chrono::steady_clock::now();
   auto const result = canonicalize(segments, ToleranceConfig{});

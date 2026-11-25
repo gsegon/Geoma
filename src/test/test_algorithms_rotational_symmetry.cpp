@@ -1,5 +1,5 @@
-
 #include "geoma/geoma.h"
+#include "test_user_customization_point.h"
 
 #include <gtest/gtest.h>
 #include <numbers>
@@ -9,6 +9,7 @@
 
 
 using namespace geoma;
+using namespace geoma_test;
 
 /**
  * Set has rotational symmetry.
@@ -35,7 +36,8 @@ TEST(TestAlgorithms, has_rotational_symmetry_02) {
     {{1.0, 2.0}, {0.0, 0.0}}
   };
 
-  EXPECT_FALSE(has_rotational_symmetry(segments, 1e-8));
+  auto result = has_rotational_symmetry<Segment, Transform>(segments, 1e-8);
+  EXPECT_FALSE(result);
 }
 
 /**
@@ -67,7 +69,7 @@ TEST(TestAlgorithms, has_rotational_symmetry_03) {
 
   const auto start = std::chrono::steady_clock::now();
 
-  const bool result = has_rotational_symmetry(segments, tol);
+  const bool result = has_rotational_symmetry<Segment, Transform>(segments, tol);
 
   const auto elapsed = std::chrono::duration<double>(
     std::chrono::steady_clock::now() - start

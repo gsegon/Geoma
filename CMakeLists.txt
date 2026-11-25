@@ -13,6 +13,6 @@ option(BUILD_TESTING "Enable building tests" OFF)
 # Add source
 add_subdirectory(src)
 
-# Add examples
-add_subdirectory(examples)
+# Add example
+add_subdirectory(example)
 

@@ -1,11 +1,13 @@
 
 #include <geoma/geoma.h>
+#include "test_user_customization_point.h"
 
 #include <gtest/gtest.h>
 #include <numbers>
 #include <vector>
 
 using namespace geoma;
+using namespace geoma_test;
 
 TEST(TestAlgorithms, find_transform_01) {
   std::vector<Segment> source{
@@ -26,12 +28,12 @@ TEST(TestAlgorithms, find_transform_01) {
   }
 
   ToleranceConfig config{};
-  config.tol = 1e-8;
+  config.tolerance = 1e-8;
 
-  auto result = find_transform(source, target, config);
+  auto result = find_transform<Segment, Transform>(source, target, config);
 
   ASSERT_TRUE(result.has_value());
-  EXPECT_TRUE(verify_equal(source, target, *result, config.tol));
+  EXPECT_TRUE(verify_equal(source, target, *result, config.tolerance));
 }
 
 TEST(TestAlgorithms, find_transform_02) {
@@ -46,7 +48,7 @@ TEST(TestAlgorithms, find_transform_02) {
   };
 
   ToleranceConfig config{};
-  config.tol = 1e-8;
+  config.tolerance = 1e-8;
 
   auto result = find_transform<Segment, Transform>(source, target, config);
 
@@ -88,7 +90,7 @@ TEST(TestAlgorithms, find_transform_03) {
   std::ranges::reverse(target);
 
   ToleranceConfig config{};
-  config.tol = tol;
+  config.tolerance = tol;
 
   const auto start = std::chrono::steady_clock::now();
 
