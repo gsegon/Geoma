@@ -1,5 +1,6 @@
-#include <geoma/geoma.h>
 #include "test_user_customization_point.h"
+
+#include <geoma/geoma.h>
 #include <gtest/gtest.h>
 
 
@@ -21,7 +22,7 @@ TEST(TestAlgorithms, canonicalize_01)
 
   ASSERT_EQ(result.size(), 1);
 
-  auto const &segment = *result.begin();
+  auto const& segment = *result.begin();
 
   EXPECT_DOUBLE_EQ(segment.p1.x, 0.0);
   EXPECT_DOUBLE_EQ(segment.p1.y, 0.0);
@@ -59,7 +60,7 @@ TEST(TestAlgorithms, canonicalize_03)
 
   ASSERT_EQ(result.size(), 1);
 
-  auto const &segment = *result.begin();
+  auto const& segment = *result.begin();
 
   EXPECT_DOUBLE_EQ(segment.p1.x, 0.0);
   EXPECT_DOUBLE_EQ(segment.p2.x, 3.0);

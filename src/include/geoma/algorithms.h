@@ -485,7 +485,7 @@ namespace geoma
         std::vector<Node>          nodes;
 
         explicit SegmentBvh(std::vector<S> const& input)
-        : SegmentBvh(std::span<S const>{input})
+          : SegmentBvh(std::span<S const>{input})
         {}
 
         explicit SegmentBvh(std::span<S const> input)
@@ -565,7 +565,7 @@ namespace geoma
             });
 
           auto const left  = build(begin, mid); // build on left
-          auto const right = build(mid, end);  // build on right
+          auto const right = build(mid, end);   // build on right
 
           nodes[node].left_child_node  = left;
           nodes[node].right_child_node = right;
@@ -686,7 +686,7 @@ namespace geoma
 
               if (distance_a > tol || distance_b > tol)
                 {
-                  return;   // reject
+                  return; // reject
                 }
 
               // Project onto s, whose interval is [0, len].
@@ -706,14 +706,13 @@ namespace geoma
 
 
             // The source segment is project on [0, len], and target segments
-            // are projected on the same coordinate system and stored as [lo, hi]
-            // intervals. Intervals are sorted.
-            // Accumulate covered_end
+            // are projected on the same coordinate system and stored as [lo,
+            // hi] intervals. Intervals are sorted. Accumulate covered_end
             double covered_end = 0.0;
             for (auto const& [lo, hi] : intervals)
               {
-
-                // New lo must not be bigger the current covered_end (within tol)
+                // New lo must not be bigger the current covered_end (within
+                // tol)
                 if (lo > covered_end + tol)
                   {
                     return false;

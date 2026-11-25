@@ -1,16 +1,15 @@
 #include "geoma-cp.h"
-#include <iostream>
 
+#include <iostream>
 
 int
 main()
 {
-
-
   std::vector<MyTypes::Segment> source{{{0, 0}, {3, 0}}, {{3, 0}, {3, 2}}};
   std::vector<MyTypes::Segment> target{{{5, 3}, {5, 6}}, {{5, 6}, {3, 6}}};
 
-  auto result = find_transform<MyTypes::Segment, MyTypes::Transform>(source, target, geoma::ToleranceConfig{});
+  auto result = find_transform<MyTypes::Segment, MyTypes::Transform>(
+    source, target, geoma::ToleranceConfig{});
 
   if (!result)
     {

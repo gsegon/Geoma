@@ -12,38 +12,31 @@ using namespace geoma_test;
 /**
  * Two sets in canonical form but - equal.
  */
-TEST(TestAlgorithms, verify_equal_01) {
-  std::vector<Segment> source{
-    {{0.0, 0.0}, {3.0, 0.0}},
-    {{3.0, 0.0}, {3.0, 2.0}}
-  };
+TEST(TestAlgorithms, verify_equal_01)
+{
+  std::vector<Segment> source{{{0.0, 0.0}, {3.0, 0.0}},
+                              {{3.0, 0.0}, {3.0, 2.0}}};
 
-  Transform transform{
-    .angle = std::numbers::pi / 2.0,
-    .translation = {5.0, 3.0}
-  };
+  Transform transform{.angle       = std::numbers::pi / 2.0,
+                      .translation = {5.0, 3.0}};
 
-  std::vector<Segment> target{
-    {{5.0, 3.0}, {5.0, 6.0}},
-    {{5.0, 6.0}, {3.0, 6.0}}
-  };
-  auto result = verify_equal<Segment, Transform>(source, target, transform, 1e-8);
+  std::vector<Segment> target{{{5.0, 3.0}, {5.0, 6.0}},
+                              {{5.0, 6.0}, {3.0, 6.0}}};
+  auto                 result =
+    verify_equal<Segment, Transform>(source, target, transform, 1e-8);
   EXPECT_TRUE(result);
 }
 
 /**
  * Two sets in canonical form - not equal.
  */
-TEST(TestAlgorithms, verify_equal_02) {
-  std::vector<Segment> source{
-    {{0.0, 0.0}, {3.0, 0.0}},
-    {{3.0, 0.0}, {3.0, 2.0}}
-  };
+TEST(TestAlgorithms, verify_equal_02)
+{
+  std::vector<Segment> source{{{0.0, 0.0}, {3.0, 0.0}},
+                              {{3.0, 0.0}, {3.0, 2.0}}};
 
-  std::vector<Segment> target{
-    {{0.0, 0.0}, {3.0, 0.0}},
-    {{3.0, 0.0}, {3.0, 3.0}}
-  };
+  std::vector<Segment> target{{{0.0, 0.0}, {3.0, 0.0}},
+                              {{3.0, 0.0}, {3.0, 3.0}}};
 
   Transform transform{};
 
